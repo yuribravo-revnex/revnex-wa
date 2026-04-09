@@ -44,10 +44,26 @@ async function start() {
   });
 }
 
-app.get('/qr', (req, res) => {
-  res.json({ qr: qrCode });
-});
+const QRCode = require('qrcode');
 
+app.get('/qr', async (req, res) => {
+  if (!qrCode) {
+    return res.send('QR ainda não gerado. Recarregue.');
+  }
+
+  try {
+    const qrImage = await QRCode.toDataURL(qrCode);
+    res.send(`
+      <html>
+        <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
+          <img src="${qrImage}" />
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    res.status(500).send('Erro ao gerar QR');
+  }
+});
 app.post('/send', async (req, res) => {
   try {
     const { phone, text } = req.body;
