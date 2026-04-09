@@ -22,55 +22,16 @@ let sock = null;
 let qrCode = null;
 
 // =============================
-// START WHATSAPP
+// START SERVER IMEDIATO
 // =============================
-async function startSock() {
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth');
-    const { version } = await fetchLatestBaileysVersion();
+const PORT = process.env.PORT || 3000;
 
-    sock = makeWASocket({
-      version,
-      auth: state,
-      logger
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      if (qr) {
-        qrCode = qr;
-        console.log('QR GERADO');
-      }
-
-      if (connection === 'open') {
-        console.log('WHATSAPP CONECTADO');
-        qrCode = null;
-      }
-
-      if (connection === 'close') {
-        const reason = lastDisconnect?.error?.output?.statusCode;
-
-        console.log('DESCONECTADO:', reason);
-
-        if (reason !== DisconnectReason.loggedOut) {
-          setTimeout(startSock, 3000);
-        }
-      }
-    });
-
-  } catch (err) {
-    console.log('ERRO START:', err.message);
-    setTimeout(startSock, 5000);
-  }
-}
-
-startSock();
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('SERVER ONLINE NA PORTA', PORT);
+});
 
 // =============================
-// HEALTHCHECK (CRÍTICO)
+// HEALTHCHECK (ESSENCIAL)
 // =============================
 app.get('/', (req, res) => {
   res.send('OK');
@@ -116,10 +77,52 @@ app.post('/send', async (req, res) => {
 });
 
 // =============================
-// PORT FIX (ESSENCIAL)
+// START WHATSAPP (DELAY)
 // =============================
-const PORT = process.env.PORT || 3000;
+async function startSock() {
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth');
+    const { version } = await fetchLatestBaileysVersion();
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('SERVER ONLINE NA PORTA', PORT);
-});
+    sock = makeWASocket({
+      version,
+      auth: state,
+      logger
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        qrCode = qr;
+        console.log('QR GERADO');
+      }
+
+      if (connection === 'open') {
+        console.log('WHATSAPP CONECTADO');
+        qrCode = null;
+      }
+
+      if (connection === 'close') {
+        const reason = lastDisconnect?.error?.output?.statusCode;
+
+        console.log('DESCONECTADO:', reason);
+
+        if (reason !== DisconnectReason.loggedOut) {
+          setTimeout(startSock, 3000);
+        }
+      }
+    });
+
+  } catch (err) {
+    console.log('ERRO WA:', err.message);
+    setTimeout(startSock, 5000);
+  }
+}
+
+// ⛔ DELAY CRÍTICO (resolve Railway)
+setTimeout(() => {
+  startSock();
+}, 5000);
