@@ -56,29 +56,33 @@ async function startSock() {
         console.log('DESCONECTADO:', reason);
 
         if (reason !== DisconnectReason.loggedOut) {
-          console.log('RECONEXÃO EM 3s...');
-          setTimeout(() => startSock(), 3000);
-        } else {
-          console.log('LOGOUT DETECTADO - PRECISA NOVO QR');
+          setTimeout(startSock, 3000);
         }
       }
     });
 
   } catch (err) {
     console.log('ERRO START:', err.message);
-    setTimeout(() => startSock(), 5000);
+    setTimeout(startSock, 5000);
   }
 }
 
 startSock();
 
 // =============================
-// QR ROUTE (SUPER ESTÁVEL)
+// HEALTHCHECK (CRÍTICO)
+// =============================
+app.get('/', (req, res) => {
+  res.send('OK');
+});
+
+// =============================
+// QR ROUTE
 // =============================
 app.get('/qr', async (req, res) => {
   try {
     if (!qrCode) {
-      return res.status(200).send('QR ainda não disponível. Atualize.');
+      return res.send('QR ainda não disponível');
     }
 
     const buffer = await QRCode.toBuffer(qrCode);
@@ -87,8 +91,7 @@ app.get('/qr', async (req, res) => {
     res.send(buffer);
 
   } catch (err) {
-    console.log('ERRO QR:', err.message);
-    res.status(500).send('Erro ao gerar QR');
+    res.status(500).send('Erro QR');
   }
 });
 
@@ -103,23 +106,20 @@ app.post('/send', async (req, res) => {
       return res.status(500).json({ error: 'WhatsApp não conectado' });
     }
 
-    const jid = phone + '@s.whatsapp.net';
-
-    await sock.sendMessage(jid, { text });
+    await sock.sendMessage(phone + '@s.whatsapp.net', { text });
 
     res.json({ ok: true });
 
   } catch (err) {
-    console.log('ERRO SEND:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // =============================
-// SERVER
+// PORT FIX (ESSENCIAL)
 // =============================
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log('REVNEX WA RODANDO');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('SERVER ONLINE NA PORTA', PORT);
 });
