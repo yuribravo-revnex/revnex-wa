@@ -18,9 +18,12 @@ app.use(express.json());
 
 const logger = pino({ level: 'silent' });
 
-let sock;
+let sock = null;
 let qrCode = null;
 
+// =============================
+// START WHATSAPP
+// =============================
 async function startSock() {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('./auth');
@@ -34,7 +37,7 @@ async function startSock() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -53,43 +56,45 @@ async function startSock() {
         console.log('DESCONECTADO:', reason);
 
         if (reason !== DisconnectReason.loggedOut) {
-          console.log('RECONNECT...');
-          setTimeout(startSock, 3000);
+          console.log('RECONEXÃO EM 3s...');
+          setTimeout(() => startSock(), 3000);
         } else {
-          console.log('PRECISA NOVO QR');
+          console.log('LOGOUT DETECTADO - PRECISA NOVO QR');
         }
       }
     });
 
   } catch (err) {
     console.log('ERRO START:', err.message);
-    setTimeout(startSock, 5000);
+    setTimeout(() => startSock(), 5000);
   }
 }
 
 startSock();
 
+// =============================
+// QR ROUTE (SUPER ESTÁVEL)
+// =============================
 app.get('/qr', async (req, res) => {
   try {
     if (!qrCode) {
-      return res.send('QR ainda não disponível. Atualize a página.');
+      return res.status(200).send('QR ainda não disponível. Atualize.');
     }
 
-    const qrImage = await QRCode.toDataURL(qrCode);
+    const buffer = await QRCode.toBuffer(qrCode);
 
-    res.send(`
-      <html>
-        <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
-          <img src="${qrImage}" />
-        </body>
-      </html>
-    `);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(buffer);
+
   } catch (err) {
     console.log('ERRO QR:', err.message);
-    res.send('Erro ao gerar QR, atualize a página.');
+    res.status(500).send('Erro ao gerar QR');
   }
 });
 
+// =============================
+// SEND MESSAGE
+// =============================
 app.post('/send', async (req, res) => {
   try {
     const { phone, text } = req.body;
@@ -103,11 +108,16 @@ app.post('/send', async (req, res) => {
     await sock.sendMessage(jid, { text });
 
     res.json({ ok: true });
+
   } catch (err) {
+    console.log('ERRO SEND:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+// =============================
+// SERVER
+// =============================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
